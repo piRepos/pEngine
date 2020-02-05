@@ -5,6 +5,7 @@ using SharpVk;
 
 using pEngine.Graphics.Vulkan.Vertexs;
 using pEngine.Graphics.Vulkan.Shading;
+using pEngine.Graphics.Vulkan.Devices;
 
 namespace pEngine.Graphics.Vulkan
 {
@@ -16,15 +17,14 @@ namespace pEngine.Graphics.Vulkan
 		/// <summary>
 		/// Makes a new instance of <see cref="RenderPipeline"/> class.
 		/// </summary>
-		public VKPipeline(GraphicDevicee device)
+		public VKPipeline(VKGraphicDevice device, bool compute) : base(device , compute)
 		{
-			CurrentDevice = device;
 		}
 
 		/// <summary>
 		/// The device on which this pipline will be binded to.
 		/// </summary>
-		protected GraphicDevicee CurrentDevice { get; }
+		protected new VKGraphicDevice GraphicDevice => base.GraphicDevice as VKGraphicDevice;
 
 		/// <summary>
 		/// Contains the pipeline layout.
@@ -44,7 +44,7 @@ namespace pEngine.Graphics.Vulkan
 			Disposed = false;
 			
 			// - Prepare the pipeline by creating the layout
-			Layout = CurrentDevice.LogicalDevice.CreatePipelineLayout(null, null);
+			Layout = GraphicDevice.Handle.CreatePipelineLayout(null, null);
 
 			// - Shader pipeline attachment
 			var shaders = new List<PipelineShaderStageCreateInfo>();
@@ -82,7 +82,7 @@ namespace pEngine.Graphics.Vulkan
 				});
 			}
 
-			PipelineInstance = CurrentDevice.LogicalDevice.CreateGraphicsPipeline
+			PipelineInstance = GraphicDevice.Handle.CreateGraphicsPipeline
 			(
 				null,
 				shaders.ToArray(),
