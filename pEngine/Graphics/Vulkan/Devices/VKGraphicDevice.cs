@@ -44,6 +44,21 @@ namespace pEngine.Graphics.Vulkan.Devices
 		public Queue ComputeQueue { get; private set; }
 
 		/// <summary>
+		/// Graphics queue index.
+		/// </summary>
+		public uint GraphicQueueIndex { get; private set; }
+
+		/// <summary>
+		/// Present queue index.
+		/// </summary>
+		public uint PresentQueueIndex { get; private set; }
+
+		/// <summary>
+		/// Compute queue index.
+		/// </summary>
+		public uint ComputeQueueIndex { get; private set; }
+
+		/// <summary>
 		/// Associated Vulkan's physical device.
 		/// </summary>
 		public new VKPhysicalDevice Physical => base.Physical as VKPhysicalDevice;
@@ -51,14 +66,14 @@ namespace pEngine.Graphics.Vulkan.Devices
 		/// <summary>
 		/// Initialize the graphic device.
 		/// </summary>
-		public override void Initialize(ISurface surface)
+		public override void Initialize()
 		{
-			base.Initialize(surface);
+			base.Initialize();
 
 			// - Take presentation and graphic queue
-			var GraphicQueueIndex = GetSuitableQueues(Physical.Handle, QueueFlags.Graphics).First();
-			var PresentQueueIndex = GetPresentQueues(Physical.Handle, Physical.DrawingSurface).First();
-			var ComputeQueueIndex = GetSuitableQueues(Physical.Handle, QueueFlags.Compute).First();
+			GraphicQueueIndex = GetSuitableQueues(Physical.Handle, QueueFlags.Graphics).First();
+			PresentQueueIndex = GetPresentQueues(Physical.Handle, Physical.DrawingSurface.Handle).First();
+			ComputeQueueIndex = GetSuitableQueues(Physical.Handle, QueueFlags.Compute).First();
 
 			var queues = new DeviceQueueCreateInfo[]
 			{
@@ -78,6 +93,11 @@ namespace pEngine.Graphics.Vulkan.Devices
 
 		#region Device utilities
 
+		public static implicit operator Device(VKGraphicDevice device)
+		{
+			return device.Handle;
+		}
+
 		private IEnumerable<uint> GetSuitableQueues(SharpVk.PhysicalDevice device, QueueFlags type)
 		{
 			// - Gets GPU command queues
@@ -94,7 +114,7 @@ namespace pEngine.Graphics.Vulkan.Devices
 			}
 		}
 
-		private IEnumerable<uint> GetPresentQueues(SharpVk.PhysicalDevice device, Surface surface)
+		private IEnumerable<uint> GetPresentQueues(SharpVk.PhysicalDevice device, SharpVk.Khronos.Surface surface)
 		{
 			// - Gets GPU command queues
 			var queues = device.GetQueueFamilyProperties();

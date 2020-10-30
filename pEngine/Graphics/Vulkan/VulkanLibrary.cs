@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Linq;
+using System.Collections.Generic;
 
 using pEngine.Diagnostic;
 using pEngine.Environment;
@@ -64,13 +66,20 @@ namespace pEngine.Graphics.Vulkan
 				UserData = IntPtr.Zero
 			};
 
-			string[] validationLayers = new string[]
-			{
-				"VK_LAYER_LUNARG_standard_validation"
-			};
+			List<string> validationLayers = new List<string>();
+			var layers = Instance.EnumerateLayerProperties();
+
+			if (layers.Any(x => x.LayerName == "VK_LAYER_LUNARG_standard_validation"))
+				validationLayers.Add("VK_LAYER_LUNARG_standard_validation");
+
+			if (layers.Any(x => x.LayerName == "VK_LAYER_LUNARG_monitor"))
+				validationLayers.Add("VK_LAYER_LUNARG_monitor");
+
+			if (layers.Any(x => x.LayerName == "VK_LAYER_KHRONOS_validation"))
+				validationLayers.Add("VK_LAYER_KHRONOS_validation");
 
 			// - Creates the vulkan instance
-			Handle = Instance.Create(validationLayers, targetSurface.Extensions, null, appInfo, debugInfo);
+			Handle = Instance.Create(validationLayers.ToArray(), targetSurface.Extensions, null, appInfo, debugInfo);
 		}
 
 		/// <summary>
@@ -79,7 +88,7 @@ namespace pEngine.Graphics.Vulkan
 		/// <returns>Vulkan debug flags.</returns>
 		private DebugReportFlags DebugFlags()
 		{
-			DebugReportFlags debug = DebugReportFlags.None;
+			DebugReportFlags debug = DebugReportFlags.Debug | DebugReportFlags.Error | DebugReportFlags.Information | DebugReportFlags.PerformanceWarning | DebugReportFlags.Warning;
 
 			if (Debug.RendererDebugLevel.HasFlag(DebugLevel.Critical))
 				debug |= DebugReportFlags.Error;

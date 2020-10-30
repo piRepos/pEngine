@@ -1,31 +1,64 @@
 ﻿using System;
+using System.Collections.Generic;
 
-using pEngine.Environment.Video;
+using pEngine.Utils.Math;
+using pEngine.Graphics.Shading;
+using pEngine.Graphics.Devices;
+using pEngine.Graphics.FrameBuffers;
 
-namespace pEngine.Graphics.Devices
+namespace pEngine.Graphics.Pipelines
 {
 	/// <summary>
-	/// A virtual device which allows rendering.
+	/// A virtual representation of a GPU's swapchain
 	/// </summary>
-	public class GraphicDevice : IDisposable
+	public class SwapChain : IDisposable
 	{
 		/// <summary>
-		/// Makes a new instance of <see cref="GraphicDevice"/> class.
+		/// Makes a new instance of <see cref="SwapChain"/> class.
 		/// </summary>
-		public GraphicDevice(PhysicalDevice device)
+		/// <param name="device">Source device.</param>
+		public SwapChain(PhysicalDevice card, GraphicDevice device)
 		{
-			Physical = device;
+			RenderDevice = device;
+			GraphicsCard = card;
 		}
 
 		/// <summary>
-		/// Associated physical device.
+		/// Stored physical device.
 		/// </summary>
-		public PhysicalDevice Physical { get; }
+		protected PhysicalDevice GraphicsCard { get; private set; }
 
 		/// <summary>
-		/// Initialize the graphic device.
+		/// Stored working device.
 		/// </summary>
-		public virtual void Initialize()
+		protected GraphicDevice RenderDevice { get; private set; }
+
+		/// <summary>
+		/// Active swap chain video format.
+		/// </summary>
+		public virtual SurfaceFormat CurrentFormat { get; }
+
+		/// <summary>
+		/// Video source formats.
+		/// </summary>
+		public virtual IEnumerable<SurfaceFormat> Formats { get; }
+
+		/// <summary>
+		/// Video surface size.
+		/// </summary>
+		public virtual Vector2i SurfaceSize { get; }
+
+		/// <summary>
+		/// Swapchain frame buffers.
+		/// </summary>
+		public virtual IList<FrameBuffer> VideoBuffers { get; }
+
+		/// <summary>
+		/// Initialize this swap chain on a specified surface.
+		/// </summary>
+		/// <param name="surface">Target video surface.</param>
+		/// <param name="surfaceSize">Swap queue target size.</param>
+		public virtual void Initialize(Surface surface, Vector2i surfaceSize)
 		{
 			Disposed = false;
 		}
@@ -72,7 +105,7 @@ namespace pEngine.Graphics.Devices
 		/// Use C# destructor syntax for finalization code.
 		/// This destructor will run only if the Dispose method does not get called.
 		/// </summary>
-		~GraphicDevice()
+		~SwapChain()
 		{
 			Dispose(false);
 		}

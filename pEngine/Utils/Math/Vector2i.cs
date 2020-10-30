@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Xml.Serialization;
 
 using pEngine.Utils.Math;
+using SharpVk;
 
 namespace pEngine
 {
@@ -775,6 +776,15 @@ namespace pEngine
 		public static implicit operator Vector2i(System.Drawing.Point pos)
 		{
 			return new Vector2i(pos.X, pos.Y);
+		}
+
+		/// <summary>
+		/// Conversion from pEngine Vector2i to Vulkan Extent2D.
+		/// </summary>
+		/// <param name="pos">pEngine Vector2i.</param>
+		public static implicit operator Extent2D(Vector2i pos)
+		{
+			return new Extent2D((uint)Math.Max(pos.X, 0), (uint)Math.Max(pos.Y, 0));
 		}
 
 		internal static string listSeparator = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ListSeparator;

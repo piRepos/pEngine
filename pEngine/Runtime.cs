@@ -250,8 +250,14 @@ namespace pEngine
 			// - Prepare all attachments
 			Renderer.LoadAttachments(graphicResources);
 
-			// - Render a frame
-			Renderer.Render();
+			using (var assets = GraphicRenderBuffer.Get(UsageType.Read))
+			{
+				// - Render a frame
+				Renderer.Render(assets.Value);
+			}
+
+			if (GraphicGameLoop.ExitRequest)
+				Renderer.CloseRendering();
 		}
 
 		/// <summary>

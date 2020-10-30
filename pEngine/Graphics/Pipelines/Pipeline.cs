@@ -15,16 +15,22 @@ namespace pEngine.Graphics.Pipelines
 		/// <summary>
 		/// Makes a new instance of <see cref="Pipeline"/> class.
 		/// </summary>
-		public Pipeline(GraphicDevice device, bool compute = false)
+		public Pipeline(GraphicDevice device, RenderPass pass, bool compute = false)
 		{
 			GraphicDevice = device;
 			IsCompute = compute;
+			RenderPass = pass;
 		}
 
 		/// <summary>
 		/// The device on which this pipline will be binded to.
 		/// </summary>
 		protected GraphicDevice GraphicDevice { get; }
+
+		/// <summary>
+		/// Pipeline render pass.
+		/// </summary>
+		protected RenderPass RenderPass { get; }
 
 		/// <summary>
 		/// Gets or sets the shader program.
@@ -49,7 +55,7 @@ namespace pEngine.Graphics.Pipelines
 		/// <summary>
 		/// Initializes the render pipeline.
 		/// </summary>
-		public virtual void Initialize()
+		public virtual void Initialize(Vector2i size)
 		{
 			Disposed = false;
 		}
@@ -87,6 +93,8 @@ namespace pEngine.Graphics.Pipelines
 			// Check to see if Dispose has already been called.
 			if (!Disposed)
 			{
+				RenderPass?.Dispose();
+
 				// Note disposing has been done.
 				Disposed = true;
 			}

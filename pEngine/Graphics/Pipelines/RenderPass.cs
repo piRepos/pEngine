@@ -1,29 +1,34 @@
 ﻿using System;
 
-using pEngine.Environment.Video;
+using pEngine.Graphics.Devices;
 
-namespace pEngine.Graphics.Devices
+namespace pEngine.Graphics.Pipelines
 {
 	/// <summary>
-	/// A virtual device which allows rendering.
+	/// Contains all the informations needed by a frame or a rendering step.
 	/// </summary>
-	public class GraphicDevice : IDisposable
+	public class RenderPass : IDisposable
 	{
 		/// <summary>
-		/// Makes a new instance of <see cref="GraphicDevice"/> class.
+		/// Makes a new instance of <see cref="RenderPass"/> class.
 		/// </summary>
-		public GraphicDevice(PhysicalDevice device)
+		public RenderPass(GraphicDevice device)
 		{
-			Physical = device;
+			GraphicDevice = device;
 		}
 
 		/// <summary>
-		/// Associated physical device.
+		/// Contains the parent graphic device.
 		/// </summary>
-		public PhysicalDevice Physical { get; }
+		protected GraphicDevice GraphicDevice { get; }
 
 		/// <summary>
-		/// Initialize the graphic device.
+		/// Gets if the render pass is initialized.
+		/// </summary>
+		public virtual bool Initialized => false;
+
+		/// <summary>
+		/// Initializes the render pass.
 		/// </summary>
 		public virtual void Initialize()
 		{
@@ -72,7 +77,7 @@ namespace pEngine.Graphics.Devices
 		/// Use C# destructor syntax for finalization code.
 		/// This destructor will run only if the Dispose method does not get called.
 		/// </summary>
-		~GraphicDevice()
+		~RenderPass()
 		{
 			Dispose(false);
 		}

@@ -12,12 +12,16 @@ using pEngine.Environment.Video;
 using pEngine.Diagnostic;
 
 using pEngine.Framework;
+using pEngine.Framework.Geometry;
 
 using pEngine.Graphics.Shading;
 using pEngine.Graphics.Vulkan.Shading;
 using pEngine.Graphics.Vulkan.Vertexs;
 
 using pEngine.Graphics.Vulkan.Devices;
+using pEngine.Graphics.Vulkan.Pipelines;
+using pEngine.Graphics.Resources;
+using pEngine.Graphics.Data;
 
 namespace pEngine.Graphics.Vulkan
 {
@@ -37,6 +41,38 @@ namespace pEngine.Graphics.Vulkan
 
 			// - Creates the vulkan graphical device
 			base.GraphicDevice = new VKGraphicDevice(PhysicalDevice);
+
+			// - Istantiate modules
+			ShaderManager = new VKShaderManager(GraphicDevice);
+
+			// - Initialize the vertex manager
+			base.VertexManager = new VKVertexBuffer(GraphicDevice, 100, true, 0.2);
+
+			// - Initialize the index manager
+			base.IndexManager = new VKIndexBuffer(GraphicDevice, 100, true, 0.2);
+
+			// - Initialize the geometry dispatcher
+			base.GeometryDispatcher = new VKGeometryDispatcher(VertexManager, IndexManager);
+
+			// - Create a new swapchain
+			Swapchain = new VKSwapChain(PhysicalDevice, GraphicDevice);
+
+			// - Create the default render pass
+			DefaultRenderPass = new VKRenderPass(GraphicDevice);
+
+			// - Create the default pipeline
+			Pipeline = new VKPipeline(GraphicDevice, DefaultRenderPass, false);
+
+			// - Number of frames processing at the same time allowed
+			MaxFrameInFlight = 2;
+
+			// - Rendering and syncronization
+			Commands = new List<CommandPool>();
+			CommandBuffers = new List<CommandBuffer[]>();
+			RenderFinishedSemaphores = new List<Semaphore>();
+			ImageAvailableSemaphores = new List<Semaphore>();
+			InFlightFences = new List<Fence>();
+			ImagesInFlight = new List<Fence>();
 		}
 
 		/// <summary>
@@ -65,47 +101,71 @@ namespace pEngine.Graphics.Vulkan
 		public new VKVertexBuffer VertexManager => base.VertexManager as VKVertexBuffer;
 
 		/// <summary>
+		/// Geometry resource store.
+		/// </summary>
+		public new VKGeometryDispatcher GeometryDispatcher => base.GeometryDispatcher as VKGeometryDispatcher;
+
+		/// <summary>
 		/// Window or area where the library will render all images.
 		/// </summary>
 		protected Surface DrawingSurface { get; private set; }
 
 		/// <summary>
-		/// Manage the comunication between the physical and the logical
-		/// video device.
-		/// </summary>
-		protected GraphicDevicee RenderingDevice { get; private set; }
-
-		/// <summary>
 		/// 
 		/// </summary>
-		protected SwapChain Swapchain { get; private set; }
+		protected VKSwapChain Swapchain { get; private set; }
 
 		/// <summary>
 		/// Current renderer drawing pipeline.
 		/// </summary>
-		protected RenderPipeline Pipeline { get; private set; }
+		protected VKPipeline Pipeline { get; private set; }
 
 		/// <summary>
 		/// Configure the default graphic render pass.
 		/// A render pass is like a descriptor that tells to the graphics
 		/// card which resources are needed from a rendering step.
 		/// </summary>
-		protected RenderPass DefaultRenderPass { get; private set; }
+		protected VKRenderPass DefaultRenderPass { get; private set; }
 
 		/// <summary>
 		/// Command pool, makes all the command buffers.
 		/// </summary>
-		protected CommandPool Commands { get; private set; }
+		protected List<CommandPool> Commands { get; private set; }
+
+		/// <summary>
+		/// Command buffers.
+		/// </summary>
+		protected List<CommandBuffer[]> CommandBuffers { get; private set; }
 
 		/// <summary>
 		/// Swapchain presentation semaphore.
 		/// </summary>
-		protected Semaphore ImgAvaiable { get; private set; }
+		protected List<Semaphore> ImageAvailableSemaphores { get; private set; }
 
 		/// <summary>
 		/// Swapchain render finish semaphore.
 		/// </summary>
-		protected Semaphore RenderFinish { get; private set; }
+		protected List<Semaphore> RenderFinishedSemaphores { get; private set; }
+
+		/// <summary>
+		/// Syncronization fences.
+		/// </summary>
+		protected List<Fence> InFlightFences { get; private set; }
+
+		/// <summary>
+		/// Fences for all images that are actually in elaboration status.
+		/// </summary>
+		protected List<Fence> ImagesInFlight { get; private set; }
+
+		/// <summary>
+		/// Maximum pending frames per CPU clock tick.
+		/// </summary>
+		public int MaxFrameInFlight { get; private set; }
+
+		/// <summary>
+		/// Current frame in the pending frame window.
+		/// </summary>
+		private int CurrentFrame { get; set; } = 0;
 
 		/// <summary>
 		/// Initialize the graphic library.
@@ -118,41 +178,24 @@ namespace pEngine.Graphics.Vulkan
 			Library.Initialize(TargetSurface);
 
 			// - Makes a new device manager
-			RenderingDevice = new GraphicDevicee(VulkanInstance);
-
-			// - Istantiate modules
-			ShaderManager = new VKShaderManager(RenderingDevice);
-
-			// - Initialize the vertex manager
-			base.VertexManager = new VKVertexBuffer(RenderingDevice, 100, true, 0.2);
-
-			// - Initialize the index manager
-			base.IndexManager = new VKIndexBuffer(RenderingDevice, 100, true, 0.2);
-
-			// - Create a new swapchain
-			Swapchain = new SwapChain(RenderingDevice);
-
-			// - Create the default pipeline
-			Pipeline = new RenderPipeline(RenderingDevice);
-
-			// - Makes a new drawing surface
-			DrawingSurface = TargetSurface.CreateVKSurface(VulkanInstance);
+			PhysicalDevice.Initialize(TargetSurface);
 
 			// - Initialize the physical device on this drawing area
-			RenderingDevice.SelectPhysicalDevice(DrawingSurface);
-
-			// - Creates a logical device used for rendering
-			RenderingDevice.CreateLogicalDevice();
+			GraphicDevice.Initialize();
 
 			// - Initialize index and vert manager
 			VertexManager.Setup();
 			IndexManager.Setup();
 
-			// - Create the command pool
-			Commands = RenderingDevice.LogicalDevice.CreateCommandPool(RenderingDevice.GraphicQueueIndex);
-
-			ImgAvaiable = RenderingDevice.LogicalDevice.CreateSemaphore();
-			RenderFinish = RenderingDevice.LogicalDevice.CreateSemaphore();
+			// - Makes syncronization semaphores and fances CPU<->GPU
+			for (int i = 0; i < MaxFrameInFlight; ++i)
+			{
+				CommandBuffers.Add(null);
+				Commands.Add(GraphicDevice.Handle.CreateCommandPool(GraphicDevice.GraphicQueueIndex, CommandPoolCreateFlags.ResetCommandBuffer));
+				ImageAvailableSemaphores.Add(GraphicDevice.Handle.CreateSemaphore());
+				RenderFinishedSemaphores.Add(GraphicDevice.Handle.CreateSemaphore());
+				InFlightFences.Add(GraphicDevice.Handle.CreateFence(FenceCreateFlags.Signaled));
+			}
 		}
 
 		/// <summary>
@@ -162,31 +205,30 @@ namespace pEngine.Graphics.Vulkan
 		{
 			base.ConfigureRendering();
 
-			// - Makes a new drawing surface
-			DrawingSurface = TargetSurface.CreateVKSurface(VulkanInstance);
-
 			// - Initialize the swap chain
-			Swapchain.Initialize(DrawingSurface, TargetSurface.SurfaceSize);
+			Swapchain.Initialize(PhysicalDevice.DrawingSurface, TargetSurface.SurfaceSize);
 
 			// - Initialzie the swapchain images
 			Swapchain.CreateImageViews();
 
 			// - Configure the default render pass
-			ConfigureRenderPass(RenderingDevice, Swapchain.CurrentFormat.Format);
+			DefaultRenderPass.Initialize((Format)Swapchain.CurrentFormat.Format);
 
 			// - Load shaders
 			ShaderManager.CreateShaders();
 
 			// - Gets default shaders
 			var defaultShader = ShaderManager[typeof(DefaultShader)] as VKShaderInstance;
-			var vert = defaultShader.VKVertexShader;
-			var frag = defaultShader.VKFragmentShader;
+			Pipeline.Shader = defaultShader;
 
 			// - Initialize pipeline
-			Pipeline.Initialize(DefaultRenderPass, Swapchain.Extent, vert, frag);
+			Pipeline.Initialize(TargetSurface.SurfaceSize);
 
 			// - Build swapchain framebuffers
 			Swapchain.CreateFrameBuffers(DefaultRenderPass);
+
+			for (int i = 0; i < Swapchain.Images.Count(); ++i)
+				ImagesInFlight.Add(null);
 		}
 
 		/// <summary>
@@ -194,11 +236,38 @@ namespace pEngine.Graphics.Vulkan
 		/// </summary>
 		public override void LoadAttachments(IEnumerable<Resource.IDescriptor> resources)
 		{
-			base.LoadAttachments(resources);
+			// - Skip buffer creation if no resources to load
+			if (resources.Count() <= 0) return;
 
-			var commands = RenderingDevice.LogicalDevice.AllocateCommandBuffer(Commands, CommandBufferLevel.Primary);
+			// - Creates a command buffer for data transfer
+			var commands = GraphicDevice.Handle.AllocateCommandBuffer(Commands[0], CommandBufferLevel.Primary);
 
 			commands.Begin(CommandBufferUsageFlags.OneTimeSubmit);
+
+			foreach (Resource.IDescriptor res in resources)
+			{
+				switch (res)
+				{
+					case Shape.Descriptor shape:
+
+						// - Loads the geometry
+						Geometry pointer = GeometryDispatcher.Load(shape);
+
+						// - Set resource loaded in the source thread
+						shape.SourceScheduler.Add(() =>
+						{
+							shape.SetResource(pointer);
+							shape.SetState(Resource.State.Loaded);
+						});
+
+						break;
+
+					default:
+						throw new Exception($"Resource {res.GetType().Name} does not has a loader.");
+				}
+
+			}
+
 			{
 				// - Upload invalidated vertexs
 				VertexManager.Upload(commands, 1000);
@@ -210,7 +279,7 @@ namespace pEngine.Graphics.Vulkan
 			commands.End();
 
 			// - Perform all attachment operations
-			RenderingDevice.GraphicQueue.Submit
+			GraphicDevice.GraphicQueue.Submit
 			(
 				new SubmitInfo
 				{ 
@@ -220,38 +289,47 @@ namespace pEngine.Graphics.Vulkan
 			);
 
 			// - Free attachment command buffer
-			Commands.FreeCommandBuffers(commands);
+			Commands[0].FreeCommandBuffers(commands);
 
 			// - Wait the GPU (we must operate only when GPU is idle)
-			RenderingDevice.LogicalDevice.WaitIdle();
+			GraphicDevice.Handle.WaitIdle();
 		}
 
 		/// <summary>
 		/// Render a set of asssets on the screen.
 		/// </summary>
-		public override void Render()
+		public override void Render(Asset[] assets)
 		{
-			base.Render();
+			base.Render(assets);
 
-			CommandBuffer[] commandBuffers;
 
-			commandBuffers = RenderingDevice.LogicalDevice.AllocateCommandBuffers(Commands, CommandBufferLevel.Primary, (uint)Swapchain.Images.Length);
+			CommandBuffers[CurrentFrame] = GraphicDevice.Handle.AllocateCommandBuffers(Commands[CurrentFrame], CommandBufferLevel.Primary, (uint)Swapchain.Images.Count());	
 
-			for (int index = 0; index < Swapchain.Images.Length; index++)
+
+			for (int index = 0; index < Swapchain.Images.Count(); index++)
 			{
-				var commandBuffer = commandBuffers[index];
+				var commandBuffer = CommandBuffers[CurrentFrame][index];
 
 				commandBuffer.Begin(CommandBufferUsageFlags.SimultaneousUse);
 
-				commandBuffer.BeginRenderPass(DefaultRenderPass, Swapchain.VideoBuffers[index], new Rect2D(Swapchain.Extent), (ClearValue)(1F, 0F, 0F, 1F), SubpassContents.Inline);
+				commandBuffer.BeginRenderPass(DefaultRenderPass.Handle, Swapchain.VideoBuffers[index].Handler, new Rect2D(Swapchain.SurfaceSize), (ClearValue)(0F, 1F, 0F, 1F), SubpassContents.Inline);
 
-				commandBuffer.BindPipeline(PipelineBindPoint.Graphics, Pipeline.PipelineInstance);
+				if (assets != null)
+				{
+					foreach (Asset asset in assets)
+					{
+						// - Gets the mesh from the mesh store
+						var mesh = GeometryDispatcher.Get(asset.Mesh);
 
-				VertexManager.Bind(commandBuffer);
+						VertexManager.Bind(commandBuffer);
 
-				IndexManager.Bind(commandBuffer, 0);
+						IndexManager.Bind(commandBuffer, (int)mesh.Indexes.Offset);
 
-				commandBuffer.DrawIndexed(6, 1, 0, 0, 0);
+						commandBuffer.BindPipeline(PipelineBindPoint.Graphics, Pipeline.PipelineInstance);
+
+						commandBuffer.DrawIndexed((uint)mesh.Indexes.Count, (uint)mesh.Indexes.Count / 3, 0, 0, 0);
+					}
+				}
 
 				commandBuffer.EndRenderPass();
 
@@ -259,23 +337,40 @@ namespace pEngine.Graphics.Vulkan
 			}
 
 
-			uint nextImage = Swapchain.Handle.AcquireNextImage(uint.MaxValue, ImgAvaiable, null);
+			uint nextImage = Swapchain.Handle.AcquireNextImage(uint.MaxValue, ImageAvailableSemaphores[CurrentFrame], null);
 
-			RenderingDevice.GraphicQueue.Submit
-			(
-				new SubmitInfo
-				{
-					CommandBuffers = new[] { commandBuffers[nextImage] },
-					SignalSemaphores = new[] { RenderFinish },
-					WaitDestinationStageMask = new[] { PipelineStageFlags.ColorAttachmentOutput },
-					WaitSemaphores = new[] { ImgAvaiable }
-				},
-				null
-			);
+			if (ImagesInFlight[(int)nextImage] != null)
+			{
+				GraphicDevice.Handle.WaitForFences(ImagesInFlight[(int)nextImage], true, UInt64.MaxValue);
+			}
+
+			// - Mark the image as now being in use by this frame
+			ImagesInFlight[(int)nextImage] = InFlightFences[CurrentFrame];
 
 			try
 			{
-				var present = RenderingDevice.PresentQueue.Present(RenderFinish, Swapchain.Handle, nextImage, new Result[1]);
+				GraphicDevice.Handle.ResetFences(InFlightFences[CurrentFrame]);
+
+				GraphicDevice.GraphicQueue.Submit
+				(
+					new SubmitInfo
+					{
+						CommandBuffers = new[] { CommandBuffers[CurrentFrame][nextImage] },
+						SignalSemaphores = new[] { RenderFinishedSemaphores[CurrentFrame] },
+						WaitDestinationStageMask = new[] { PipelineStageFlags.ColorAttachmentOutput },
+						WaitSemaphores = new[] { ImageAvailableSemaphores[CurrentFrame] }
+					},
+					InFlightFences[CurrentFrame]
+				);
+			}
+			catch (DeviceLostException)
+			{
+				InvalidateDevice();
+			}
+
+			try
+			{
+				var present = GraphicDevice.PresentQueue.Present(RenderFinishedSemaphores[CurrentFrame], Swapchain.Handle, nextImage, new Result[1]);
 
 				switch (present)
 				{
@@ -286,7 +381,9 @@ namespace pEngine.Graphics.Vulkan
 
 				if (present == Result.Success)
 				{
-					Commands.FreeCommandBuffers(commandBuffers);
+					GraphicDevice.Handle.WaitForFences(InFlightFences[CurrentFrame], true, UInt64.MaxValue);
+					Commands[(CurrentFrame + 1) % MaxFrameInFlight].FreeCommandBuffers(CommandBuffers[(CurrentFrame + 1) % MaxFrameInFlight]);
+					CommandBuffers[(CurrentFrame + 1) % MaxFrameInFlight] = null;
 				}
 			}
 			catch
@@ -298,6 +395,15 @@ namespace pEngine.Graphics.Vulkan
 				
 			}
 			
+			CurrentFrame = (CurrentFrame + 1) % MaxFrameInFlight;
+		}
+
+		/// <summary>
+		/// Do all syncronization things to stop graphic loop
+		/// </summary>
+		public virtual void CloseRendering()
+		{
+
 		}
 
 		/// <summary>
@@ -309,7 +415,7 @@ namespace pEngine.Graphics.Vulkan
 			base.InvalidateGraphics();
 
 			// - Wait the GPU (we must operate only when GPU is idle)
-			RenderingDevice.LogicalDevice.WaitIdle();
+			GraphicDevice.Handle.WaitIdle();
 
 			// - Dispose render pass
 			DefaultRenderPass.Dispose();
@@ -319,9 +425,6 @@ namespace pEngine.Graphics.Vulkan
 
 			// - Dipose current swapchain
 			Swapchain.Dispose();
-
-			// - Dispose current VK surface
-			DrawingSurface.Dispose();
 
 			// - Reconfigure the renderer
 			ConfigureRendering();
@@ -335,7 +438,7 @@ namespace pEngine.Graphics.Vulkan
 			base.InvalidateDevice();
 
 			// - Wait the GPU (we must operate only when GPU is idle)
-			RenderingDevice.LogicalDevice.WaitIdle();
+			GraphicDevice.Handle.WaitIdle();
 
 			// - Dispose render pass
 			DefaultRenderPass.Dispose();
@@ -356,8 +459,21 @@ namespace pEngine.Graphics.Vulkan
 			// - Release all VK shaders
 			ShaderManager.Dispose();
 
+			for (int i = 0; i < MaxFrameInFlight; ++i)
+			{
+				if (CommandBuffers[i] != null)
+				{
+					foreach (var buffer in CommandBuffers[i]) buffer.Reset();
+					Commands[i].FreeCommandBuffers(CommandBuffers[i]);
+				}
+			}
+
+			foreach (Fence fence in InFlightFences) fence.Destroy();
+			foreach (Semaphore sem in ImageAvailableSemaphores) sem.Destroy();
+			foreach (Semaphore sem in RenderFinishedSemaphores) sem.Destroy();
+
 			// - Dispose device
-			RenderingDevice.Dispose();
+			GraphicDevice.Dispose();
 
 			// - Initialize device
 			Initialize();
@@ -373,8 +489,10 @@ namespace pEngine.Graphics.Vulkan
 		{
 			base.Dispose(disposing);
 
+			GraphicDevice.Handle.WaitForFences(InFlightFences.ToArray(), true, UInt64.MaxValue);
+
 			// - Wait the GPU (we must operate only when GPU is idle)
-			RenderingDevice.LogicalDevice.WaitIdle();
+			GraphicDevice.Handle.WaitIdle();
 
 			// - Dispose render pass
 			DefaultRenderPass.Dispose();
@@ -385,9 +503,6 @@ namespace pEngine.Graphics.Vulkan
 			// - Dipose current swapchain
 			Swapchain.Dispose();
 
-			// - Dispose current VK surface
-			DrawingSurface.Dispose();
-
 			// - Dispose vertex and index managers
 			VertexManager.Dispose();
 			IndexManager.Dispose();
@@ -395,75 +510,25 @@ namespace pEngine.Graphics.Vulkan
 			// - Release all VK shaders
 			ShaderManager.Dispose();
 
+			for (int i = 0; i < MaxFrameInFlight; ++i)
+			{
+				if (CommandBuffers[i] != null)
+				{
+					foreach (var buffer in CommandBuffers[i]) buffer.Reset();
+				}
+			}
+
+			foreach (CommandPool pool in Commands) {  pool?.Destroy(); }
+			foreach (Fence fence in InFlightFences) fence?.Destroy();
+			foreach (Semaphore sem in ImageAvailableSemaphores) sem?.Destroy();
+			foreach (Semaphore sem in RenderFinishedSemaphores) sem?.Destroy();
+
 			// - Dispose device
-			RenderingDevice.Dispose();
+			GraphicDevice.Dispose();
 
 			// - Dispose vulkan
-			VulkanInstance.Dispose();
+			Library.Dispose();
 		}
-
-		#region Render pass
-
-		private void ConfigureRenderPass(GraphicDevicee device, Format videoFormat)
-		{
-			// - Makes the default render pass
-			DefaultRenderPass = device.LogicalDevice.CreateRenderPass
-			(
-				new AttachmentDescription
-				{
-					Format = videoFormat,
-					Samples = SampleCountFlags.SampleCount1,
-					LoadOp = AttachmentLoadOp.Clear,
-					StoreOp = AttachmentStoreOp.Store,
-					StencilLoadOp = AttachmentLoadOp.DontCare,
-					StencilStoreOp = AttachmentStoreOp.DontCare,
-					InitialLayout = ImageLayout.Undefined,
-					FinalLayout = ImageLayout.PresentSource
-				},
-				new SubpassDescription
-				{
-					DepthStencilAttachment = new AttachmentReference
-					{
-						Attachment = Constants.AttachmentUnused
-					},
-
-					PipelineBindPoint = PipelineBindPoint.Graphics,
-
-					ColorAttachments = new[]
-					{
-						new AttachmentReference
-						{
-							Attachment = 0,
-							Layout = ImageLayout.ColorAttachmentOptimal
-						}
-					}
-				},
-				new SubpassDependency[]
-				{
-					new SubpassDependency
-					{
-						SourceSubpass = Constants.SubpassExternal,
-						DestinationSubpass = 0,
-						SourceStageMask = PipelineStageFlags.BottomOfPipe,
-						SourceAccessMask = AccessFlags.MemoryRead,
-						DestinationStageMask = PipelineStageFlags.ColorAttachmentOutput,
-						DestinationAccessMask = AccessFlags.ColorAttachmentRead | AccessFlags.ColorAttachmentWrite
-					},
-					new SubpassDependency
-					{
-						SourceSubpass = 0,
-						DestinationSubpass = Constants.SubpassExternal,
-						SourceStageMask = PipelineStageFlags.ColorAttachmentOutput,
-						SourceAccessMask = AccessFlags.ColorAttachmentRead | AccessFlags.ColorAttachmentWrite,
-						DestinationStageMask = PipelineStageFlags.BottomOfPipe,
-						DestinationAccessMask = AccessFlags.MemoryRead
-					}
-				}
-			);
-
-		}
-
-		#endregion
 
 		#region Debug
 

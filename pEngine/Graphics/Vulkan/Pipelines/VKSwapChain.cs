@@ -1,75 +1,99 @@
 ﻿using System;
 using System.Linq;
+using System.Collections.Generic;
 
 using SharpVk;
 using SharpVk.Khronos;
 using SharpVk.Multivendor;
 
+using pEngine.Graphics.Vulkan.Devices;
+using pEngine.Graphics.Devices;
+using pEngine.Graphics.Pipelines;
+using pEngine.Graphics.Vulkan.FrameBuffers;
+using pEngine.Graphics.FrameBuffers;
+
 namespace pEngine.Graphics.Vulkan
 {
+	using SurfaceFormat = Graphics.FrameBuffers.SurfaceFormat;
+	using Surface = Graphics.Devices.Surface;
+	using Format = SharpVk.Format;
+	using ColorSpace = SharpVk.Khronos.ColorSpace;
+
 	/// <summary>
 	/// Handles a Vulkan swap chain settings.
 	/// </summary>
-	public class SwapChain : IDisposable
+	public class VKSwapChain : SwapChain
 	{
 		/// <summary>
-		/// Makes a new instance of <see cref="SwapChain"/> class.
+		/// Makes a new instance of <see cref="VKSwapChain"/> class.
 		/// </summary>
 		/// <param name="device">Source device.</param>
-		public SwapChain(GraphicDevicee device)
+		public VKSwapChain(VKPhysicalDevice card, VKGraphicDevice device)
+			: base(card, device)
 		{
-			RenderDevice = device;
+			
 		}
 
 		/// <summary>
-		/// Stored working device.
+		/// Contains the parent graphic device.
 		/// </summary>
-		protected GraphicDevicee RenderDevice { get; private set; }
+		protected new VKGraphicDevice RenderDevice => base.RenderDevice as VKGraphicDevice;
 
 		/// <summary>
-		/// Swap chain capabilities.
+		/// Contains the parent graphic card.
 		/// </summary>
-		public SurfaceCapabilities Capabilities { get; private set; }
-		
+		protected new VKPhysicalDevice GraphicsCard => base.GraphicsCard as VKPhysicalDevice;
+
 		/// <summary>
 		/// Video source format.
 		/// </summary>
-		public SurfaceFormat[] Formats { get; private set; }
+		public override IEnumerable<SurfaceFormat> Formats => formats.Cast<SurfaceFormat>();
 
 		/// <summary>
 		/// Presentation mode.
 		/// </summary>
-		public PresentMode[] PresentModes { get; private set; }
+		public IEnumerable<PresentMode> PresentModes => presentModes;
 
 		/// <summary>
 		/// Active swap chain video format.
 		/// </summary>
-		public SurfaceFormat CurrentFormat { get; private set; }
-
-		/// <summary>
-		/// Swap chain image.
-		/// </summary>
-		public Image[] Images { get; private set; }
+		public override SurfaceFormat CurrentFormat => surfaceFormat;
 
 		/// <summary>
 		/// Video surface size.
 		/// </summary>
-		public Extent2D Extent { get; private set; }
+		public override Vector2i SurfaceSize => new Vector2i((int)extent.Width, (int)extent.Height);
+
+		/// <summary>
+		/// Swap chain image.
+		/// </summary>
+		public IEnumerable<Image> Images => images;
+
+		/// <summary>
+		/// Image views.
+		/// </summary>
+		public IEnumerable<ImageView> ImageViews => imageViews;
+
+		/// <summary>
+		/// Vulkan swap chain.
+		/// </summary>
+		public new IList<VKFrameBuffer> VideoBuffers => videoBuffers.Select(x => new VKFrameBuffer(x)).ToList();
 
 		/// <summary>
 		/// Vulkan swap chain.
 		/// </summary>
 		public Swapchain Handle { get; private set; }
 
-		/// <summary>
-		/// 
-		/// </summary>
-		public ImageView[] ImageViews { get; private set; }
 
-		/// <summary>
-		/// Swapchain frame buffers.
-		/// </summary>
-		public Framebuffer[] VideoBuffers { get; private set; }
+		#region Initialization and settings
+
+		private SharpVk.Khronos.SurfaceFormat surfaceFormat;
+		private SharpVk.Khronos.SurfaceFormat[] formats;
+		private SharpVk.Khronos.PresentMode[] presentModes;
+		private SharpVk.Framebuffer[] videoBuffers;
+		private SharpVk.ImageView[] imageViews;
+		private SharpVk.Image[] images;
+		private SharpVk.Extent2D extent;
 
 		/// <summary>
 		/// Initialize this swap chain on a specified surface.
@@ -78,34 +102,36 @@ namespace pEngine.Graphics.Vulkan
 		/// <param name="surfaceSize">Swap queue target size.</param>
 		public void Initialize(Surface surface, Vector2i surfaceSize)
 		{
-			pDisposed = false;
+			base.Initialize(surface, surfaceSize);
+
+			VKSurface vkSurface = surface as VKSurface;
 
 			// - Get capabilites and hardware information
-			Capabilities = RenderDevice.PhysicalDevice.GetSurfaceCapabilities(surface);
-			Formats = RenderDevice.PhysicalDevice.GetSurfaceFormats(surface);
-			PresentModes = RenderDevice.PhysicalDevice.GetSurfacePresentModes(surface);
+			SurfaceCapabilities Capabilities = GraphicsCard.Handle.GetSurfaceCapabilities(vkSurface.Handle);
+			formats = GraphicsCard.Handle.GetSurfaceFormats(vkSurface.Handle);
+			presentModes = GraphicsCard.Handle.GetSurfacePresentModes(vkSurface.Handle);
 
 			uint imageCount = Capabilities.MinImageCount + 1;
 			if (Capabilities.MaxImageCount > 0 && imageCount > Capabilities.MaxImageCount)
 				imageCount = Capabilities.MaxImageCount;
 
 			// - Default video format -> the first one
-			CurrentFormat = Formats[0];
+			surfaceFormat = formats[0];
 
 			// - Checks for a BGRA32 video format
-			foreach (var format in Formats)
+			foreach (var format in formats)
 			{
 				if (format.Format == Format.B8G8R8A8UNorm && format.ColorSpace == ColorSpace.SrgbNonlinear)
 				{
-					CurrentFormat = format;
+					surfaceFormat = format;
 					break;
 				}
 			}
 
 			// - Checks if ther're no avaiable formats and we create a new one
-			if (Formats.Length == 1 && Formats[0].Format == Format.Undefined)
+			if (formats.Length == 1 && formats[0].Format == Format.Undefined)
 			{
-				CurrentFormat = new SurfaceFormat
+				surfaceFormat = new SharpVk.Khronos.SurfaceFormat
 				{
 					Format = Format.B8G8R8A8UNorm,
 					ColorSpace = ColorSpace.SrgbNonlinear
@@ -125,11 +151,11 @@ namespace pEngine.Graphics.Vulkan
 			var queues = new[] { RenderDevice.PresentQueueIndex, RenderDevice.GraphicQueueIndex };
 			bool exclusive = RenderDevice.GraphicQueueIndex == RenderDevice.PresentQueueIndex;
 
-			Handle = RenderDevice.LogicalDevice.CreateSwapchain
+			Handle = RenderDevice.Handle.CreateSwapchain
 			(
-				surface, imageCount,
-				CurrentFormat.Format,
-				CurrentFormat.ColorSpace,
+				vkSurface.Handle, imageCount,
+				surfaceFormat.Format,
+				surfaceFormat.ColorSpace,
 				extent, 1, ImageUsageFlags.ColorAttachment,
 				exclusive ? SharingMode.Exclusive : SharingMode.Concurrent, exclusive ? null : queues, 
 				Capabilities.CurrentTransform, CompositeAlphaFlags.Opaque, 
@@ -137,8 +163,8 @@ namespace pEngine.Graphics.Vulkan
 				true, Handle
 			);
 
-			Images = Handle.GetImages();
-			Extent = extent;
+			images = Handle.GetImages();
+			this.extent = extent;
 		}
 
 		/// <summary>
@@ -147,10 +173,10 @@ namespace pEngine.Graphics.Vulkan
 		/// </summary>
 		public void CreateImageViews()
 		{
-			ImageViews = Images.Select(img => RenderDevice.LogicalDevice.CreateImageView
+			imageViews = Images.Select(img => RenderDevice.Handle.CreateImageView
 			(
 				img, ImageViewType.ImageView2d,
-				CurrentFormat.Format, ComponentMapping.Identity,
+				surfaceFormat.Format, ComponentMapping.Identity,
 				new ImageSubresourceRange(ImageAspectFlags.Color, 0, 1, 0, 1)
 			)).ToArray();
 		}
@@ -159,29 +185,17 @@ namespace pEngine.Graphics.Vulkan
 		/// Creates all framebuffers from the swapchain images.
 		/// </summary>
 		/// <param name="pass">Render pass.</param>
-		public void CreateFrameBuffers(RenderPass pass)
+		public void CreateFrameBuffers(VKRenderPass pass)
 		{
 			Framebuffer Create(ImageView imageView) => 
-				RenderDevice.LogicalDevice.CreateFramebuffer(pass, new[] { imageView }, Extent.Width, Extent.Height, 1);
+				RenderDevice.Handle.CreateFramebuffer(pass.Handle, new[] { imageView }, extent.Width, extent.Height, 1);
 
-			VideoBuffers = ImageViews.Select(Create).ToArray();
+			videoBuffers = ImageViews.Select(Create).ToArray();
 		}
 
-		/// <summary>
-		/// Dispose logic variable.
-		/// </summary>
-		private bool pDisposed { get; set; }
+		#endregion
 
-		/// <summary>
-		/// Implement IDisposable.
-		/// </summary>
-		public void Dispose()
-		{
-			Dispose(true);
-
-			// - This object will be cleaned up by the Dispose method.
-			GC.SuppressFinalize(this);
-		}
+		#region Disposable
 
 		/// <summary>
 		/// Dispose(bool disposing) executes in two distinct scenarios.
@@ -193,35 +207,30 @@ namespace pEngine.Graphics.Vulkan
 		/// other objects. Only unmanaged resources can be disposed.
 		/// </summary>
 		/// <param name="disposing"><see cref="True"/> if called from user's code.</param>
-		protected virtual void Dispose(bool disposing)
+		protected override void Dispose(bool disposing)
 		{
 			// Check to see if Dispose has already been called.
-			if (!pDisposed)
+			if (!Disposed)
 			{
 				// - Destroy all images
-				foreach (var img in ImageViews) img?.Dispose();
+				foreach (var img in Images) img?.Destroy();
+				foreach (var img in ImageViews) img?.Destroy();
+				foreach (var fb in VideoBuffers) fb?.Handler.Destroy();
 
-				Images = new Image[0];
-				ImageViews = new ImageView[0];
-				VideoBuffers = new Framebuffer[0];
+				images = new Image[0];
+				imageViews = new ImageView[0];
+				videoBuffers = new Framebuffer[0];
 
 				// - Destroy swap chain
 				Handle?.Dispose();
 				Handle = null;
 
 				// Note disposing has been done.
-				pDisposed = true;
+				Disposed = true;
 			}
 		}
 
-		/// <summary>
-		/// Use C# destructor syntax for finalization code.
-		/// This destructor will run only if the Dispose method does not get called.
-		/// </summary>
-		~SwapChain()
-		{
-			Dispose(false);
-		}
+		#endregion
 
 	}
 }

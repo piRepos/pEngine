@@ -26,7 +26,7 @@ namespace pEngine.Graphics.Vulkan.Devices
 		/// <summary>
 		/// Target drawing surface.
 		/// </summary>
-		public Surface DrawingSurface { get; private set; }
+		public VKSurface DrawingSurface { get; private set; }
 
 		/// <summary>
 		/// Vulkan physical device.
@@ -61,7 +61,12 @@ namespace pEngine.Graphics.Vulkan.Devices
 
 		#region Device utilities
 
-		private IEnumerable<SharpVk.PhysicalDevice> FilterSuitableDevices(IEnumerable<SharpVk.PhysicalDevice> devices, Surface surface)
+		public static implicit operator SharpVk.PhysicalDevice(VKPhysicalDevice device)
+		{
+			return device.Handle;
+		}
+
+		private IEnumerable<SharpVk.PhysicalDevice> FilterSuitableDevices(IEnumerable<SharpVk.PhysicalDevice> devices, VKSurface surface)
 		{
 			bool SuitabilityCriteria(SharpVk.PhysicalDevice device)
 			{
@@ -125,14 +130,14 @@ namespace pEngine.Graphics.Vulkan.Devices
 			}
 		}
 
-		private IEnumerable<uint> GetPresentQueues(SharpVk.PhysicalDevice device, Surface surface)
+		private IEnumerable<uint> GetPresentQueues(SharpVk.PhysicalDevice device, VKSurface surface)
 		{
 			// - Gets GPU command queues
 			var queues = device.GetQueueFamilyProperties();
 
 			for (uint i = 0; i < queues.Length; ++i)
 			{
-				if (device.GetSurfaceSupport(i, surface))
+				if (device.GetSurfaceSupport(i, surface.Handle))
 				{
 					yield return i;
 				}
@@ -155,7 +160,7 @@ namespace pEngine.Graphics.Vulkan.Devices
 		{
 			if (!Disposed)
 			{
-				DrawingSurface.Destroy();
+				DrawingSurface.Handle.Destroy();
 			}
 
 			base.Dispose(disposing);

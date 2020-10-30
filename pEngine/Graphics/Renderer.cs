@@ -8,6 +8,7 @@ using pEngine.Environment.Video;
 using pEngine.Graphics.Shading;
 using pEngine.Graphics.Devices;
 using pEngine.Graphics.Data;
+using pEngine.Graphics.Resources;
 
 namespace pEngine.Graphics
 {
@@ -55,6 +56,11 @@ namespace pEngine.Graphics
 		/// Manages raw index allocation and the GPU buffer transfer.
 		/// </summary>
 		public IndexBuffer IndexManager { get; protected set; }
+
+		/// <summary>
+		/// Geometry resource store.
+		/// </summary>
+		public GeometryDispatcher GeometryDispatcher { get; protected set; }
 
 		/// <summary>
 		/// Initialize the graphic library.
@@ -128,30 +134,45 @@ namespace pEngine.Graphics
 		/// </summary>
 		public virtual void LoadAttachments(IEnumerable<Resource.IDescriptor> resources)
 		{
-			foreach (Shape.Descriptor shape in resources)
+			foreach (Resource.IDescriptor res in resources)
 			{
-				// - Alloc the needed vertexs for this shape
-				var vertexs = VertexManager.Alloc((uint)shape.Points.Length);
-
-
-				shape.SourceScheduler.Add(() =>
+				switch (res)
 				{
-					shape.SetResource(new Resources.Geometry
-					{
-						
-					});
+					case Shape.Descriptor shape:
 
-					shape.SetState(Resource.State.Loaded);
-				});
+						// - Loads the geometry
+						Geometry pointer = GeometryDispatcher.Load(shape);
+
+						// - Set resource loaded in the source thread
+						shape.SourceScheduler.Add(() =>
+						{
+							shape.SetResource(pointer);
+							shape.SetState(Resource.State.Loaded);
+						});
+
+						break;
+
+					default:
+						throw new Exception($"Resource {res.GetType().Name} does not has a loader.");
+				}
+				
 			}
 		}
 
 		/// <summary>
 		/// Render a set of asssets on the screen.
 		/// </summary>
-		public virtual void Render()
+		public virtual void Render(Asset[] assets)
 		{
 			
+		}
+
+		/// <summary>
+		/// Do all syncronization things to stop graphic loop
+		/// </summary>
+		public virtual void CloseRendering()
+		{
+
 		}
 
 		#endregion

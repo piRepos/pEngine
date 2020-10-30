@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 using pEngine.Graphics.Data;
+using pEngine.Graphics.Vulkan.Devices;
 
 using SharpVk;
 
@@ -20,7 +21,7 @@ namespace pEngine.Graphics.Vulkan.Vertexs
 		/// <summary>
 		/// Makes a new instance of <see cref="VKVertexBuffer"/> class.
 		/// </summary>
-		public VKVertexBuffer(GraphicDevicee device, uint initialSize, bool canGrow, double growFactor) : 
+		public VKVertexBuffer(VKGraphicDevice device, uint initialSize, bool canGrow, double growFactor) : 
 			base(initialSize, canGrow, growFactor)
 		{
 			RenderDevice = device;
@@ -30,7 +31,7 @@ namespace pEngine.Graphics.Vulkan.Vertexs
 		/// <summary>
 		/// Stored working device.
 		/// </summary>
-		protected GraphicDevicee RenderDevice { get; private set; }
+		protected VKGraphicDevice RenderDevice { get; private set; }
 
 		/// <summary>
 		/// Buffer inside the VRAM visible only to the GPU.
@@ -70,12 +71,12 @@ namespace pEngine.Graphics.Vulkan.Vertexs
 			}
 
 			// - Gets the physical memory properties
-			var memory = RenderDevice.PhysicalDevice.GetMemoryProperties();
+			var memory = RenderDevice.Physical.Handle.GetMemoryProperties();
 
 			try
 			{
 				// - Create the vertex buffer visible from the CPU
-				StagingBuffer = RenderDevice.LogicalDevice.CreateBuffer
+				StagingBuffer = RenderDevice.Handle.CreateBuffer
 				(
 					HeapSize,
 					BufferUsageFlags.TransferSource,
@@ -84,7 +85,7 @@ namespace pEngine.Graphics.Vulkan.Vertexs
 				);
 
 				// - Create the vertex buffer inside the GPU private memory
-				VertexBuffer = RenderDevice.LogicalDevice.CreateBuffer
+				VertexBuffer = RenderDevice.Handle.CreateBuffer
 				(
 					HeapSize,
 					BufferUsageFlags.VertexBuffer | BufferUsageFlags.TransferDestination,
@@ -100,8 +101,8 @@ namespace pEngine.Graphics.Vulkan.Vertexs
 				var stagMemoryIndex = GetSuitableMemory(memory, stagReq, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent);
 
 				// - Allocate the required memory on the VRAM
-				VertexVRAM = RenderDevice.LogicalDevice.AllocateMemory(vertReq.Size, vertMemoryIndex);
-				StagingVRAM = RenderDevice.LogicalDevice.AllocateMemory(stagReq.Size, stagMemoryIndex);
+				VertexVRAM = RenderDevice.Handle.AllocateMemory(vertReq.Size, vertMemoryIndex);
+				StagingVRAM = RenderDevice.Handle.AllocateMemory(stagReq.Size, stagMemoryIndex);
 
 				// - Bind memory to the buffers
 				VertexBuffer.BindMemory(VertexVRAM, 0);
@@ -201,7 +202,7 @@ namespace pEngine.Graphics.Vulkan.Vertexs
 				}
 
 				// - Unmap the staging memory pointer
-				VertexVRAM.Unmap();
+				StagingVRAM.Unmap();
 
 				// - Send the upload message to the GPU
 				commands.CopyBuffer(StagingBuffer, VertexBuffer, uploadQueue.ToArray());
@@ -235,7 +236,7 @@ namespace pEngine.Graphics.Vulkan.Vertexs
 		public static VertexInputBindingDescription BindingDescriptor => new VertexInputBindingDescription
 		{
 			Binding = 0,
-			InputRate = VertexInputRate.Vertex,
+			InputRate = VertexInputRate.Vertex,  
 			Stride = VertexData.SizeInBytes
 		};
 

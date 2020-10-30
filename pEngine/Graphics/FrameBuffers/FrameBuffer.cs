@@ -1,34 +1,42 @@
 ﻿using System;
 
-using pEngine.Environment.Video;
+using pEngine.Graphics.Devices;
 
-namespace pEngine.Graphics.Devices
+namespace pEngine.Graphics.FrameBuffers
 {
 	/// <summary>
-	/// A virtual device which allows rendering.
+	/// Implements a generic frame buffer.
 	/// </summary>
-	public class GraphicDevice : IDisposable
+	public class FrameBuffer : IDisposable
 	{
 		/// <summary>
-		/// Makes a new instance of <see cref="GraphicDevice"/> class.
+		/// Makes a new instance of <see cref="FrameBuffer"/> class.
 		/// </summary>
-		public GraphicDevice(PhysicalDevice device)
+		public FrameBuffer()
 		{
-			Physical = device;
 		}
 
 		/// <summary>
-		/// Associated physical device.
+		/// Contains true if the framebuffer is initialized.
 		/// </summary>
-		public PhysicalDevice Physical { get; }
+		public virtual bool Initialized => false;
 
 		/// <summary>
-		/// Initialize the graphic device.
+		/// Initializes the framebuffer.
 		/// </summary>
-		public virtual void Initialize()
+		public virtual void Initialize(GraphicDevice device)
 		{
 			Disposed = false;
 		}
+
+		/// <summary>
+		/// Bind this framebuffer.
+		/// </summary>
+		public virtual void Bind()
+		{
+
+		}
+
 
 		#region Dispose
 
@@ -72,11 +80,12 @@ namespace pEngine.Graphics.Devices
 		/// Use C# destructor syntax for finalization code.
 		/// This destructor will run only if the Dispose method does not get called.
 		/// </summary>
-		~GraphicDevice()
+		~FrameBuffer()
 		{
 			Dispose(false);
 		}
 
 		#endregion
+
 	}
 }

@@ -1,7 +1,6 @@
 ﻿using System;
-
+using pEngine.Graphics.Vulkan.Devices;
 using SharpVk;
-using SharpVk.Khronos;
 
 namespace pEngine.Environment.Video
 {
@@ -27,7 +26,7 @@ namespace pEngine.Environment.Video
 		/// </summary>
 		/// <param name="vulkan">Vulcan source instance.</param>
 		/// <returns>A new <see cref="Surface"/> attached to this context.</returns>
-		Surface CreateVKSurface(Instance vulkan);
+		VKSurface CreateVKSurface(Instance vulkan);
 
 		/// <summary>
 		/// Bind this graphic context (for OpenGL or statefull libraries).

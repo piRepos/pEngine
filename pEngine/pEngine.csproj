@@ -40,7 +40,7 @@
 
   <ItemGroup>
     <Folder Include="Framework\Containers\" />
-    <Folder Include="Graphics\FrameBuffers\" />
+    <Folder Include="Graphics\OpenGL\" />
   </ItemGroup>
 
 </Project>

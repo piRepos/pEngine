@@ -54,6 +54,21 @@ namespace pEngine.Graphics.Shading
 
 		#region Vertex shader
 
+		/// <summary>
+		/// Projection matrix.
+		/// </summary>
+		public Matrix4x4 Projection;
+		
+		/// <summary>
+		/// View matrix.
+		/// </summary>
+		public Matrix4x4 View;
+
+		/// <summary>
+		/// World transformation matrix.
+		/// </summary>
+		public Matrix4x4 World;
+
 		public struct VertexData
 		{
 			/// <summary>
@@ -61,16 +76,27 @@ namespace pEngine.Graphics.Shading
 			/// </summary>
 			[SystemPositionSemantic]
 			public SVector4 Position;
+
+			/// <summary>
+			/// Vertex position.
+			/// </summary>
+			[ColorSemantic]
+			public SVector4 Color;
 		}
 
 		/// <summary>
 		/// Takes a vertex and send it directly to the rasterizer.
 		/// </summary>
 		[VertexShader]
-		public VertexData VertexShader(VertexData input)
+		public FragmentData VertexShader(VertexData input)
 		{
+			FragmentData outValue = new FragmentData();
+
+			outValue.Position = input.Position;
+			outValue.Color = input.Color;
+
 			// - Passtrough
-			return input;
+			return outValue;
 		}
 
 		#endregion
@@ -79,6 +105,12 @@ namespace pEngine.Graphics.Shading
 
 		public struct FragmentData
 		{
+			/// <summary>
+			/// Vertex position.
+			/// </summary>
+			[SystemPositionSemantic]
+			public SVector4 Position;
+
 			/// <summary>
 			/// Pixel color.
 			/// </summary>
@@ -90,10 +122,10 @@ namespace pEngine.Graphics.Shading
 		/// Takes each pixel and do stuff.
 		/// </summary>
 		[FragmentShader]
-		public FragmentData FragmentShader(FragmentData input)
+		public SVector4 FragmentShader(FragmentData input)
 		{
 			// - Passtrough
-			return input;
+			return input.Color;
 		}
 
 		#endregion

@@ -156,7 +156,7 @@ namespace pEngine.Windows.Context
         /// </summary>
         /// <param name="vulkan">Vulcan source instance.</param>
         /// <returns>A new <see cref="Surface"/> attached to this context.</returns>
-        public Surface CreateVKSurface(Instance vulkan)
+        public Graphics.Vulkan.Devices.VKSurface CreateVKSurface(Instance vulkan)
         {
             // - If not initialized do nothing
             if (!IsValid) throw new InvalidOperationException("Window not initialized");
@@ -164,7 +164,7 @@ namespace pEngine.Windows.Context
             IntPtr hinstance = GetModuleHandle("Kernel32.dll");
             IntPtr hwnd = Native.GetWin32Window(GLFWHAndle);
 
-            return vulkan.CreateWin32Surface(hinstance, hwnd);
+            return new Graphics.Vulkan.Devices.VKSurface(vulkan.CreateWin32Surface(hinstance, hwnd));
         }
 
         /// <summary>

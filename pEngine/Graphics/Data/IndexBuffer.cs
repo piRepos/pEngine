@@ -58,7 +58,7 @@ namespace pEngine.Graphics.Data
 			/// <summary>
 			/// Gets the number of elements in the collection.
 			/// </summary>
-			public int Count => (int)(Size / VertexData.SizeInBytes);
+			public int Count => (int)(Size / sizeof(int));
 
 			#region List implementation
 

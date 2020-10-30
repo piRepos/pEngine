@@ -2,6 +2,8 @@
 using System.Linq;
 using System.Collections.Generic;
 
+using pEngine.Graphics.Devices;
+
 using ShaderGen;
 using System.Collections;
 
@@ -15,11 +17,18 @@ namespace pEngine.Graphics.Shading
 		/// <summary>
 		/// Creates a new instance of <see cref="ShaderManager"/> class.
 		/// </summary>
-		public ShaderManager()
+		public ShaderManager(GraphicDevice device)
 		{
+			GraphicDevice = device;
+
 			// - Initialize the store
 			ShaderStore = new Dictionary<Type, ShaderInstance>();
 		}
+
+		/// <summary>
+		/// Vulkan rendering device.
+		/// </summary>
+		protected GraphicDevice GraphicDevice { get; }
 
 		/// <summary>
 		/// Internal shader store.

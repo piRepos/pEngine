@@ -7,17 +7,17 @@ using pEngine.Graphics.Vulkan.Vertexs;
 using pEngine.Graphics.Vulkan.Shading;
 using pEngine.Graphics.Vulkan.Devices;
 
-namespace pEngine.Graphics.Vulkan
+namespace pEngine.Graphics.Vulkan.Pipelines
 {
 	/// <summary>
 	/// Manage the Vulkan graphic pipeline initialization.
 	/// </summary>
-	public class VKPipeline : Pipelines.Pipeline
+	public class VKPipeline : Graphics.Pipelines.Pipeline
 	{
 		/// <summary>
 		/// Makes a new instance of <see cref="RenderPipeline"/> class.
 		/// </summary>
-		public VKPipeline(VKGraphicDevice device, bool compute) : base(device , compute)
+		public VKPipeline(VKGraphicDevice device, VKRenderPass pass, bool compute) : base(device, pass, compute)
 		{
 		}
 
@@ -25,6 +25,11 @@ namespace pEngine.Graphics.Vulkan
 		/// The device on which this pipline will be binded to.
 		/// </summary>
 		protected new VKGraphicDevice GraphicDevice => base.GraphicDevice as VKGraphicDevice;
+
+		/// <summary>
+		/// Pipeline render pass.
+		/// </summary>
+		public new VKRenderPass RenderPass => base.RenderPass as VKRenderPass;
 
 		/// <summary>
 		/// Contains the pipeline layout.
@@ -39,10 +44,13 @@ namespace pEngine.Graphics.Vulkan
 		/// <summary>
 		/// Initializes the render pipeline.
 		/// </summary>
-		public void Initialize(RenderPass renderPass)
+		public override void Initialize(Vector2i size)
 		{
 			Disposed = false;
-			
+
+			BufferSize = size;
+			Viewport = new Utils.Math.Rect(size);
+
 			// - Prepare the pipeline by creating the layout
 			Layout = GraphicDevice.Handle.CreatePipelineLayout(null, null);
 
@@ -107,7 +115,7 @@ namespace pEngine.Graphics.Vulkan
 					DepthBiasEnable = false,
 				},
 
-				Layout, renderPass, 0, null, -1,
+				Layout, RenderPass.Handle, 0, null, -1,
 
 				viewportState: new PipelineViewportStateCreateInfo
 				{
@@ -129,7 +137,7 @@ namespace pEngine.Graphics.Vulkan
 						new PipelineColorBlendAttachmentState
 						{
 							ColorWriteMask = ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B | ColorComponentFlags.A,
-							BlendEnable = false
+							BlendEnable = false,
 						}
 					}
 				},

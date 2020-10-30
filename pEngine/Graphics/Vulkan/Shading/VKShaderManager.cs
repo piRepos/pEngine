@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 
 using pEngine.Graphics.Shading;
+using pEngine.Graphics.Vulkan.Devices;
 
 using SharpVk;
 
@@ -22,15 +23,14 @@ namespace pEngine.Graphics.Vulkan.Shading
 		/// <summary>
 		/// Creates a new instance of <see cref="VKShaderManager"/> class.
 		/// </summary>
-		public VKShaderManager(GraphicDevicee device) : base()
+		public VKShaderManager(VKGraphicDevice device) : base(device)
 		{
-			RenderingDevice = device;
 		}
 
 		/// <summary>
 		/// Vulkan rendering device.
 		/// </summary>
-		GraphicDevicee RenderingDevice { get; }
+		protected new VKGraphicDevice GraphicDevice => base.GraphicDevice as VKGraphicDevice;
 
 		/// <summary>
 		/// Compilation function (must be overrided for a specific graphic library implementation).
@@ -120,7 +120,7 @@ namespace pEngine.Graphics.Vulkan.Shading
 		/// </summary>
 		public override void CreateShaders()
 		{
-			var device = RenderingDevice.LogicalDevice;
+			var device = GraphicDevice.Handle;
 
 			foreach (VKShaderInstance shader in Values)
 			{
